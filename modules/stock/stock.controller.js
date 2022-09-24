@@ -3,9 +3,6 @@ const StockModel = require("./stock.model");
 const stockMapped = (stock, payload) => {
   stock.name = payload.name;
   stock.transactionType = payload.transactionType;
-  stock.quantity = payload.quantity;
-  stock.ltp = payload.amount;
-  stock.transactionDate = payload.transactionDate;
   return stock;
 };
 
@@ -14,33 +11,27 @@ class Stock {
 
   buySellStock(payload) {
     return new Promise((resolve, reject) => {
-      StockModel.findOne({ name: payload.name }).then((stock) => {
-        if (stock) {
-          let newStock = new StockModel();
-          newStock.amount = stock.amount;
-          stockMapped(newStock, payload)
-            .save()
-            .then((stock) => {
-              resolve(stock);
-            })
-            .catch((err) => reject(err));
-          return;
-        }
-        if (payload.transactionType === "buy") {
-          let newStock = new StockModel();
-          newStock.amount = payload.amount;
-          stockMapped(newStock, payload)
-            .save()
-            .then((stock) => {
-              resolve(stock);
-            })
-            .catch((err) => reject(err));
-        } else {
-          return reject({
-            message: "You don't have stocks to sell, plese buy stock first",
-          });
-        }
-      });
+      let newStock = new StockModel();
+
+      if (payload.transactionType === "buy") {
+        newStock.buyAmount = payload.amount;
+        newStock.buyQuantity = payload.quantity;
+        stockMapped(newStock, payload)
+          .save()
+          .then((stock) => {
+            resolve(stock);
+          })
+          .catch((err) => reject(err));
+      } else {
+        newStock.sellAmount = payload.amount;
+        newStock.sellQuantity = payload.quantity;
+        stockMapped(newStock, payload)
+          .save()
+          .then((stock) => {
+            resolve(stock);
+          })
+          .catch((err) => reject(err));
+      }
     });
   }
 
@@ -103,38 +94,122 @@ class Stock {
     });
   }
 */
-  getBuyStocks() {
+  getIndividualDetails() {
     return new Promise((resolve, reject) => {
       StockModel.aggregate([
-        {
-          $match: {
-            transactionType: "buy",
-          },
-        },
-
         {
           $group: {
             _id: {
               name: "$name",
             },
-            totalBuyQuantity: { $sum: "$quantity" },
-            totalbuyCost: { $sum: { $multiply: ["$quantity", "$ltp"] } },
-            Dates: { $push: "$transactionDate" },
-            ltp: { $push: "$ltp" },
-            totalBuy: { $sum: 1 },
+            totalBuyQuantity: { $sum: "$buyQuantity" },
+            totalSellQuantity: { $sum: "$sellQuantity" },
+            totalSellCost: {
+              $sum: { $multiply: ["$sellQuantity", "$sellAmount"] },
+            },
+            totalBuyCost: {
+              $sum: { $multiply: ["$buyQuantity", "$buyAmount"] },
+            },
+            total: { $sum: 1 },
           },
         },
         {
           $project: {
             _id: 0,
             name: "$_id.name",
-            totalBuyQuantity: 1,
-            WCC: { $divide: ["$totalbuyCost", "$totalBuyQuantity"] },
-            Date: { $arrayElemAt: ["$Dates", -1] },
-            ltpPrice: { $arrayElemAt: ["$ltp", -1] },
+            totalSellCost: 1,
+            overalProfit: { $subtract: ["$totalBuyCost", "$totalSellCost"] },
+            averageBuyCost: { $divide: ["$totalBuyCost", "$totalBuyQuantity"] },
+            totalUnit: {
+              $subtract: ["$totalBuyQuantity", "$totalSellQuantity"],
+            },
           },
         },
-        { $sort: { Date: -1 } },
+        {
+          $project: {
+            name: 1,
+            totalSellCost: 1,
+            totalUnit: 1,
+            overalProfit: 1,
+            totalInvestment: { $multiply: ["$totalUnit", "$averageBuyCost"] },
+          },
+        },
+        {
+          $project: {
+            name: 1,
+            totalSellCost: 1,
+            totalUnit: 1,
+            overalProfit: 1,
+            totalInvestment: 1,
+            currentAmount: {
+              $cond: {
+                if: { $eq: ["$totalInvestment", 0] },
+                then: 0,
+                else: { $subtract: ["$totalInvestment", "$totalSellCost"] },
+              },
+            },
+          },
+        },
+      ])
+        .then((stocks) => resolve(stocks))
+        .catch((err) => reject(err));
+    });
+  }
+
+  getAllDetails() {
+    return new Promise((resolve, reject) => {
+      StockModel.aggregate([
+        {
+          $group: {
+            _id: {
+              buyStatus: "buy",
+              sellStatus: "sell",
+            },
+            totalBuyQuantity: { $sum: "$buyQuantity" },
+            totalSellQuantity: { $sum: "$sellQuantity" },
+            totalSellCost: {
+              $sum: { $multiply: ["$sellQuantity", "$sellAmount"] },
+            },
+            totalBuyCost: {
+              $sum: { $multiply: ["$buyQuantity", "$buyAmount"] },
+            },
+            total: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            totalSellCost: 1,
+            overalProfit: { $subtract: ["$totalBuyCost", "$totalSellCost"] },
+            averageBuyCost: { $divide: ["$totalBuyCost", "$totalBuyQuantity"] },
+            totalUnit: {
+              $subtract: ["$totalBuyQuantity", "$totalSellQuantity"],
+            },
+          },
+        },
+        {
+          $project: {
+            totalSellCost: 1,
+            totalUnit: 1,
+            overalProfit: 1,
+            totalInvestment: { $multiply: ["$totalUnit", "$averageBuyCost"] },
+          },
+        },
+        {
+          $project: {
+            totalSellCost: 1,
+            totalUnit: 1,
+            overalProfit: 1,
+            totalInvestment: 1,
+            currentAmount: {
+              $cond: {
+                if: { $eq: ["$totalInvestment", 0] },
+                then: 0,
+                else: { $subtract: ["$totalInvestment", "$totalSellCost"] },
+              },
+            },
+          },
+        },
       ])
         .then((stocks) => resolve(stocks))
         .catch((err) => reject(err));

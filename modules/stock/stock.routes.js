@@ -8,7 +8,7 @@ router.get("/stocks", (req, res, next) => {
 });
 */
 
-router.post("/", (req, res, nex) => {
+router.post("/", (req, res, next) => {
   StockController.buySellStock(req.body)
     .then((stocks) => res.status(200).json(stocks))
     .catch((err) => next(err));
@@ -20,14 +20,20 @@ router.get("/", (req, res, next) => {
     .catch((err) => next(err));
 });
 
-router.get("/sell", (req, res, next) => {
-  StockController.getSellStocks()
+router.get("/details", (req, res, next) => {
+  StockController.getIndividualDetails()
     .then((stock) => res.json(stock))
     .catch((err) => next(err));
 });
 
-router.get("/buy", (req, res, next) => {
-  StockController.getBuyStocks()
+router.get("/all-details", (req, res, next) => {
+  StockController.getAllDetails()
+    .then((stock) => res.json(stock))
+    .catch((err) => next(err));
+});
+
+router.get("/sell", (req, res, next) => {
+  StockController.getSellStocks()
     .then((stock) => res.json(stock))
     .catch((err) => next(err));
 });
