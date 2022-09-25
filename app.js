@@ -1,9 +1,11 @@
 const express = require("express");
+const { graphqlHTTP } = require("express-graphql");
 const mongoose = require("mongoose");
 const logger = require("morgan");
 const bodyParser = require("body-parser");
 const routeManager = require("./routes/index");
 const cors = require("cors");
+const schema = require("./graphql/schema/index");
 
 require("dotenv").config({ path: "variables.env" });
 
@@ -36,7 +38,15 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/", routeManager);
+app.use(
+  "/graphql",
+  graphqlHTTP({
+    graphiql: true,
+    schema,
+  })
+);
+
+// app.use("/", routeManager);
 
 app.use(function (req, res, next) {
   var err = new Error("Not Found");
